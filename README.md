@@ -446,7 +446,7 @@ passing the column definition object (and possibly other arguments),
 and specifying the result of the call as an entry in `columns` (or `subRows`).
 
 For example, to create a column structure where the first column has a
-tree expander and the second column has a checkbox, we could do this:
+tree expander and the second column has a checkbox editor, we could do this:
 
     define(["dgrid/OnDemandGrid", "dgrid/Tree", "dgrid/Editor"], function(Grid, Tree, Editor){
         grid = new Grid({
@@ -464,63 +464,82 @@ tree expander and the second column has a checkbox, we could do this:
         ...
     });
 
+## Editor
+
+The Editor plugin provides the ability to render editor controls within cells
+for a column.  When used in conjunction with a store-backed grid such as an
+OnDemandGrid, edited fields are directly correlated with the dirty state of the grid;
+changes can then be saved back to the store based on edits performed in the grid.
+
+The Editor plugin recognizes the following additional properties on the column
+definition object:
+
+* `editor`: Either a string or a Dijit widget constructor, specifying what type
+  of standard HTML input or widget to use, respectively.
+* `editOn`: A string containing the event (or multiple events, comma-separated)
+  upon which the editor should activate.  If unspecified, editors are always
+  displayed in this column's cells.
+* `editorArgs`: An object containing input attributes or widget arguments.  For
+  HTML inputs, the object will have its key/value pairs applied as node attributes
+  via `put-selector`; for widgets, the object will be passed to the widget constructor.
+* `autoSave`: If `true`, the grid's `save` method will be called as soon as a
+  change is detected in an editor in this column.  Defaults to `false`.
+
+For convenience, the `editor` and `editOn` properties may also be specified as
+the second and third arguments to the `Editor` column plugin function.
+For example, both of the following would result in an Editor which presents a
+text field when a cell in the column is double-clicked:
+
+    // long version, everything in column def object
+    Editor({
+        editor: "text",
+        editOn: "dblclick",
+        /* rest of column definition here... */
+    })
+    
+    // shorthand version, editor and editOn as arguments
+    Editor({ /* rest of column definition here... */ }, "text", "dblclick")
+
+For examples of Editor in use, see the various `Editor` test pages,
+as well as the `GridFromHtml_Editors` test page for declarative examples.
+
 ## Tree
 
 The Tree plugin enables expansion of rows to display children.
-It expects to operate on an OnDemandGrid, whose store is expected to provide
-a `getChildren(object, options)` method to return the children for each object.
-Note that for best results, `getChildren` should return results with an `observe`
-function as well, so that changes to children can also be reflected as they occur.
+It expects to operate on a store-backed grid such as an OnDemandGrid, whose
+store is expected to provide a `getChildren(object, options)` method to return
+the children for each object.  Note that for best results, `getChildren` should
+return results with an `observe` function as well, so that changes to children
+can also be reflected as they occur.
 
 The store may also (optionally) provide a `mayHaveChildren(object)` method
 which returns a boolean indicating whether or not the row can be expanded.
 
-## Editor
+## Selector
 
-The Editor plugin provides the ability to render editor controls within cells
-for a column.  When used in conjunction with the OnDemandGrid module, edited
-fields are directly correlated with the dirty state of the grid;
-changes can then be saved back to the store based on edits performed in the grid.
+Used in conjunction with the Selection mixin, the Selector plugin dedicates a
+column to the purpose of rendering a selector component, providing alternate
+means for selecting and deselecting rows in a grid.
 
-The Editor module supports both standard HTML input elements and Dijit widgets.
-To create an Editor which uses a simple input element, simply specify the type
-of the input element as the second parameter.  For example, the following would
-result in an Editor which presents a text field for each value in the column:
+The Selector plugin supports the following additional column definition property:
 
-    Editor({/* column definition here */}, "text")
+* `selectorType`: Specifies the type of selector component to use.  Defaults to
+  `checkbox`, but `radio` may also be specified, as a more appropriate choice for
+  grids in `single` selection mode.
 
-To create an Editor which uses a widget, pass the widget constructor as the
-second parameter.  For example:
+Alternatively, the `selectorType` may be specified as the second argument to
+the Selector function instead of including it within the column definition.
 
-    Editor({/* column definition here */}, TextBox)
+Note that a Selector column can be used to allow selection even in a grid where
+`selectionMode` is set to `none`, in which case the controls in the Selector
+column will be the only means by which a user may select or deselect rows.
 
-Additionally, arguments can be passed to the widget constructor by specifying a
-`widgetArgs` property in the column definition.  `widgetArgs` may be a
-simple object, but it can also be a function, for cases where widget
-initialization parameters may depend on context.  In the latter case,
-the function will be passed the data object for the current row,
-and should return an args object which will be passed to the widget constructor.
-
-By default, Editors will always be active.  However, a third "editOn" argument
-may be specified to the Editor function, which indicates which event (or events,
-comma-delimited) should switch the cell into edit mode.  In this case, the
-cell's data will display as normal until that event is fired, at which point
-the editor will be rendered, replacing the cell's content.  When the editor
-loses focus, it will disappear, replaced by the updated content.
-
-By default, changes made to items via Editors do not immediately propagate to
-the store.  However, this can be enabled for a particular Editor by
-specifying `autoSave: true` in the column definition.
-
-For examples of Editor in use, see the `Editor.html` and `GridFromHtml_Editors.html`
-test pages.
-
-### Recommendations for the editOn Argument
+### Recommendations for the editOn property
 
 If attempting to trigger an Editor on focus (to accommodate
 keyboard and mouse), it is highly recommended to use dgrid's custom event,
 `dgrid-cellfocusin` instead of `focus`, to avoid confusion of events.  Note
-that this requires also mixing the Keyboard module into the Grid.
+that this requires also mixing the Keyboard module into the Grid constructor.
 
 If touch input is a concern for activating Editors, the easiest solution is to
 use the `click` event, which browsers on touch devices tend to normalize to

@@ -1,4 +1,5 @@
-define(["dojo/has", "put-selector/put", "dojo/_base/declare", "dojo/on", "./Editor", "./List", "dojo/_base/sniff"], function(has, put, declare, listen, Editor, List){
+define(["dojo/_base/kernel", "dojo/_base/declare", "dojo/on", "dojo/has", "put-selector/put", "./List", "dojo/_base/sniff"],
+function(kernel, declare, listen, has, put, List){
 	var contentBoxSizing = has("ie") < 8 && !has("quirks");
 	
 	function appendIfNode(parent, subNode){
@@ -7,7 +8,7 @@ define(["dojo/has", "put-selector/put", "dojo/_base/declare", "dojo/on", "./Edit
 		}
 	}
 	
-	return declare([List], {
+	var Grid = declare([List], {
 		columns: null,
 		// cellNavigation: Boolean
 		//		This indicates that focus is at the cell level. This may be set to false to cause
@@ -303,12 +304,22 @@ define(["dojo/has", "put-selector/put", "dojo/_base/declare", "dojo/on", "./Edit
 			// now add a rule to style the column
 			return this.addCssRule("#" + this.domNode.id + ' .column-' + colId, css);
 		},
+		
+		/*=====
+		_configColumn: function(column, columnId, rowColumns, prefix){
+			// summary:
+			//		Method called when normalizing base configuration of a single
+			//		column.  Can be used as an extension point for behavior requiring
+			//		access to columns when a new configuration is applied.
+		},=====*/
+		
 		_configColumns: function(prefix, rowColumns){
 			// configure the current column
-			var subRow = [];
-			var isArray = rowColumns instanceof Array; 
-			for(var columnId in rowColumns){
-				var column = rowColumns[columnId];
+			var subRow = [],
+				isArray = rowColumns instanceof Array,
+				columnId, column;
+			for(columnId in rowColumns){
+				column = rowColumns[columnId];
 				if(typeof column == "string"){
 					rowColumns[columnId] = column = {label:column};
 				}
@@ -316,14 +327,15 @@ define(["dojo/has", "put-selector/put", "dojo/_base/declare", "dojo/on", "./Edit
 					column.field = columnId;
 				}
 				columnId = column.id = column.id || (isNaN(columnId) ? columnId : (prefix + columnId));
-				if(prefix){
-					this.columns[columnId] = column;
+				if(prefix){ this.columns[columnId] = column; }
+				
+				// allow further base configuration in subclasses
+				if(this._configColumn){
+					this._configColumn(column, columnId, rowColumns, prefix);
 				}
 				
-				// add reference to this instance to each column object,
-				// for potential use by column plugins
+				// add grid reference to each column object for potential use by plugins
 				column.grid = this;
-				
 				subRow.push(column); // make sure it can be iterated on
 			}
 			return isArray ? rowColumns : subRow;
@@ -341,17 +353,26 @@ define(["dojo/has", "put-selector/put", "dojo/_base/declare", "dojo/on", "./Edit
 				this.subRows = [this._configColumns("", this.columns)];
 			}
 		},
-		setColumns: function(columns){
+		_setColumns: function(columns){
 			// reset instance variables
 			this.subRows = null;
 			this.columns = columns;
 			// re-run logic
 			this._updateColumns();
 		},
-		setSubRows: function(subrows){
+		_setSubRows: function(subrows){
 			this.subRows = subrows;
 			this._updateColumns();
 		},
+		setColumns: function(columns){
+			kernel.deprecated("setColumns(...)", 'use set("columns", ...) instead', "dgrid 1.0");
+			this.set("columns", columns);
+		},
+		setSubRows: function(subrows){
+			kernel.deprecated("setSubRows(...)", 'use set("subRows", ...) instead', "dgrid 1.0");
+			this.set("subRows", subrows);
+		},
+		
 		_updateColumns: function(){
 			// summary:
 			//		Called after e.g. columns, subRows, columnSets are updated
@@ -364,4 +385,12 @@ define(["dojo/has", "put-selector/put", "dojo/_base/declare", "dojo/on", "./Edit
 			this.resize();
 		}
 	});
+	
+	// expose appendIfNode and default implementation of renderCell,
+	// e.g. for use by column plugins
+	Grid.appendIfNode = appendIfNode;
+	Grid.defaultRenderCell = function(object, data, td, options){
+		if(data != null){ td.appendChild(document.createTextNode(data)); }
+	};
+	return Grid;
 });
