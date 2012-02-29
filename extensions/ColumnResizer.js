@@ -72,6 +72,7 @@ return declare([], {
 	minWidth: 40,	//minimum column width in px
 	gridWidth: null, //place holder for the grid width property
 	_resizedColumns: false, //flag that indicates if resizer has converted column widths to px
+	
 	resizeColumnWidth: function(colId, width){
 		// Summary:
 		//      calls grid's styleColumn function to add a style for the column
@@ -81,17 +82,19 @@ return declare([], {
 		//      new width of the column
 
 		// Keep track of old styles so we don't get a long list in the stylesheet
-		if(!this._columnStyles){
-			this._columnStyles = {};
-		}
+		
+		// don't react to widths <= 0, e.g. for hidden columns
+		if(width <= 0){ return; }
+		
 		var old = this._columnStyles[colId],
 			x = this.styleColumn(colId, "width: " + width + "px;");
-
+		
 		old && old.remove();
-
-		// keep a reference
+		
+		// keep a reference for future removal
 		this._columnStyles[colId] = x;
 	},
+	
 	configStructure: function(){
 		// Reset and remove column styles when a new structure is set
 		this._resizedColumns = false;
@@ -136,14 +139,14 @@ return declare([], {
 				put(headerTextNode, childNodes[0]);
 			}
 
-			put(colNode, headerTextNode, "div.dgrid-resize-handler.resizeNode-"+id).columnId = 
+			put(colNode, headerTextNode, "div.dgrid-resize-handle.resizeNode-"+id).columnId = 
 				assoc ? assoc[id] : id;
 		}
 
 		if(!grid.mouseMoveListen){
 			listen(grid.headerNode,
-				".dgrid-resize-handler:mousedown" +
-					(has("touch") ? ",.dgrid-resize-handler:touchstart" : ""),
+				".dgrid-resize-handle:mousedown" +
+					(has("touch") ? ",.dgrid-resize-handle:touchstart" : ""),
 				function(e){ grid._resizeMouseDown(e, this); }
 			);
 			grid.mouseMoveListen = listen.pausable(document.body,
@@ -187,7 +190,7 @@ return declare([], {
 						webkitConvertPointFromNodeToPage(grid.bodyNode, new WebKitPoint(0, 0)).x : 
 						geom.position(grid.bodyNode).x;
 						
-		grid._targetCell = grid.columns[target.columnId].headerNode;
+		grid._targetCell = query(".column-" + target.columnId, grid.headerNode)[0];
 
 		// show resizer inlined
 		if(!grid._resizer){
@@ -238,7 +241,7 @@ return declare([], {
 			obj = this._getResizedColumnWidths(),//get current total column widths before resize
 			totalWidth = obj.totalWidth,
 			lastCol = obj.lastColId,
-			lastColWidth = this.columns[lastCol].headerNode.offsetWidth;
+			lastColWidth = query(".column-"+lastCol, this.headerNode)[0].offsetWidth;
 
 		if(cell.columnId != lastCol){
 			if(totalWidth + delta < this.gridWidth) {
