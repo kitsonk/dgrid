@@ -1,4 +1,4 @@
-define(["dojo/_base/array","dojo/_base/kernel", "dojo/_base/declare", "dojo/on", "dojo/aspect", "dojo/has", "./util/misc", "dojo/has!touch?./SimpleTouchScroll", "xstyle/has-class", "put-selector/put", "dojo/_base/sniff", "xstyle/css!./css/dgrid.css"], 
+define(["dojo/_base/array","dojo/_base/kernel", "dojo/_base/declare", "dojo/on", "dojo/aspect", "dojo/has", "./util/misc", "dojo/has!touch?./TouchScroll", "xstyle/has-class", "put-selector/put", "dojo/_base/sniff", "xstyle/css!./css/dgrid.css"], 
 function(arrayUtil, kernel, declare, listen, aspect, has, miscUtil, TouchScroll, hasClass, put){
 	// Add user agent/feature CSS classes 
 	hasClass("mozilla", "opera", "webkit", "ie", "ie-6", "ie-6-7", "quirks", "no-quirks", "touch");
@@ -54,20 +54,24 @@ function(arrayUtil, kernel, declare, listen, aspect, has, miscUtil, TouchScroll,
 		return document.getElementById(id);
 	}
 
-	function move(item, steps, targetClass){
+	function move(item, steps, targetClass, visible){
 		var nextSibling, current, element;
 		element = current = item.element;
 		steps = steps || 1;
 		do{
 			// move in the correct direction
-			if((nextSibling = current[steps < 0 ? 'previousSibling' : 'nextSibling'])){
-				current = nextSibling;
-				if(((current && current.className) + ' ').indexOf(targetClass + ' ') > -1){
-					// it's an element with the correct class name, counts as a real move
-					element = current;
-					steps += steps < 0 ? 1 : -1;
-				}
-			}else if((current = current.parentNode) == this.domNode){ // intentional assignment
+			if(nextSibling = current[steps < 0 ? 'previousSibling' : 'nextSibling']){
+				do{
+					current = nextSibling;
+					if(((current && current.className) + ' ').indexOf(targetClass + ' ') > -1){
+						// it's an element with the correct class name, counts as a real move
+						element = current;
+						steps += steps < 0 ? 1 : -1;
+						break;
+					}
+					// if the next sibling isn't a match, drill down to search
+				}while(nextSibling = (!visible || !current.hidden) && current[steps < 0 ? 'lastChild' : 'firstChild']);
+			}else if((current = current.parentNode) == this.domNode || (current.className + ' ').indexOf("dgrid-row ") > -1){ // intentional assignment
 				// we stepped all the way out of the grid, given up now
 				break;
 			}
@@ -146,6 +150,12 @@ function(arrayUtil, kernel, declare, listen, aspect, has, miscUtil, TouchScroll,
 			if(params){
 				this.params = params;
 				declare.safeMixin(this, params);
+				
+				// handle sort param - TODO: revise @ 1.0 when _sort -> sort
+				this._sort = params.sort || [];
+				delete this.sort; // ensure back-compat method isn't shadowed
+			}else{
+				this._sort = [];
 			}
 			var domNode = this.domNode = srcNodeRef || put("div");
 			
@@ -153,9 +163,6 @@ function(arrayUtil, kernel, declare, listen, aspect, has, miscUtil, TouchScroll,
 			this.observers = [];
 			this._listeners = [];
 			this._rowIdToObject = {};
-			// handle sort param - TODO: revise @ 1.0 when _sort -> sort
-			this._sort = params.sort || [];
-			delete this.sort; // ensure back-compat method isn't shadowed
 			
 			this.postMixInProperties && this.postMixInProperties();
 			
@@ -475,6 +482,9 @@ function(arrayUtil, kernel, declare, listen, aspect, has, miscUtil, TouchScroll,
 			// summary:
 			//		Get the row object by id, object, node, or event
 			var id;
+			
+			if(target instanceof this._Row){ return target; } // no-op; already a row
+			
 			if(target.target && target.target.nodeType){
 				// event
 				target = target.target;
@@ -507,11 +517,11 @@ function(arrayUtil, kernel, declare, listen, aspect, has, miscUtil, TouchScroll,
 			};
 		},
 		_move: move,
-		up: function(row, steps){
-			return this.row(move(row, -(steps || 1), "dgrid-row"));
+		up: function(row, steps, visible){
+			return this.row(move(row, -(steps || 1), "dgrid-row", visible));
 		},
-		down: function(row, steps){
-			return this.row(move(row, steps || 1, "dgrid-row"));
+		down: function(row, steps, visible){
+			return this.row(move(row, steps || 1, "dgrid-row", visible));
 		},
 		
 		get: function(/*String*/ name /*, ... */){
