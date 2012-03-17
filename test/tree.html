@@ -41,8 +41,10 @@
 						// returns "&nbsp;" for blank content, to prevent cell collapsing
 						return value === undefined || value === "" ? "&nbsp;" : value;
 					}
+
+					var StandardGrid = declare([Grid, Keyboard, Selection]);
 					
-					var treeGrid = window.treeGrid = declare([Grid, Keyboard, Selection])({
+					var treeGrid = window.treeGrid = new StandardGrid({
 						store: testCountryStore,
 						query: {type: "continent"},
 						columns: [
@@ -78,8 +80,13 @@
 						item.name = "Europe Edit " + (++count);
 						testCountryStore.put(item);
 					});
+					on(document.getElementById("move-rome-na"), "click", function(){
+						var item = testCountryStore.get("Rome");
+						item.parent = "NA";
+						testCountryStore.put(item);
+					});
 					
-					window.treeSelector = declare([Grid, Keyboard, Selection])({
+					window.treeSelector = new StandardGrid({
 						store: testCountryStore,
 						query: {type: "continent"},
 						selectionMode: "none",
@@ -93,11 +100,9 @@
 						]
 					}, "treeSelector");
 					
-					window.treeSubRows = declare([Grid, Keyboard, Selection])({
+					window.treeSubRows = new StandardGrid({
 						store: testCountryStore,
 						query: {type: "continent"},
-						selectionMode: "none",
-						allowSelectAll: true,
 						subRows: [[
 							tree({label:"Name", field:"name", sortable: false}),
 							{label:"Type", field:"type", sortable: false}
@@ -107,11 +112,9 @@
 						]]
 					}, "treeSubRows");
 					
-					window.treeColumnSets = declare([Grid, Keyboard, Selection, ColumnSet])({
+					window.treeColumnSets = new (declare([Grid, Keyboard, Selection, ColumnSet]))({
 						store: testCountryStore,
 						query: {type: "continent"},
-						selectionMode: "none",
-						allowSelectAll: true,
 						columnSets: [[
 							[ tree({label:"Name", field:"name", sortable: false}) ],
 							[ {label:"Type", field:"type", sortable: false} ]
@@ -136,6 +139,7 @@
 		<button id="remove-country">Remove Greece</button>
 		<button id="delete">Delete Selected</button>
 		<button id="edit-continent">Edit Europe</button>
+		<button id="move-rome-na">Move Rome to North America</button>
 		
 		<h2>Tree grid with checkbox selector to test select-all on children</h2>
 		<div id="treeSelector"></div>
