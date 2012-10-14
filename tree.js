@@ -1,5 +1,5 @@
-define(["dojo/_base/declare", "dojo/_base/array", "dojo/_base/Deferred", "dojo/query", "dojo/on", "dojo/aspect", "./Grid", "dojo/has!touch?./util/touch", "put-selector/put"],
-function(declare, arrayUtil, Deferred, querySelector, on, aspect, Grid, touchUtil, put){
+define(["dojo/_base/declare", "dojo/_base/array", "dojo/_base/Deferred", "dojo/has", "dojo/query", "dojo/on", "dojo/aspect", "./Grid", "dojo/has!touch?./util/touch", "put-selector/put"],
+function(declare, arrayUtil, Deferred, has, querySelector, on, aspect, Grid, touchUtil, put){
 
 return function(column){
 	// summary:
@@ -51,10 +51,12 @@ return function(column){
 		listeners.push(grid.on(
 			column.expandOn || ".dgrid-expando-icon:click," + colSelector + ":dblclick," + colSelector + ":keydown",
 			function(event){
-				if((event.type != "keydown" || event.keyCode == 32) &&
+				var row = grid.row(event);	
+				if((!grid.store.mayHaveChildren || grid.store.mayHaveChildren(row.data)) &&
+						(event.type != "keydown" || event.keyCode == 32) &&
 						!(event.type == "dblclick" && clicked && clicked.count > 1 &&
-							grid.row(event).id == clicked.id && event.target.className.indexOf("dgrid-expando-icon") > -1)){
-					grid.expand(this);
+							row.id == clicked.id && event.target.className.indexOf("dgrid-expando-icon") > -1)){
+					grid.expand(row);
 				}
 				
 				// If the expando icon was clicked, update clicked object to prevent
@@ -72,7 +74,7 @@ return function(column){
 			})
 		);
 		
-		if(touchUtil){
+		if(has("touch")){
 			// Also listen on double-taps of the cell.
 			listeners.push(grid.on(touchUtil.selector(colSelector, touchUtil.dbltap),
 				function(){ grid.expand(this); }));
@@ -103,6 +105,14 @@ return function(column){
 				}
 			}
 		}));
+		
+		if(column.collapseOnRefresh){
+			// Clear out the _expanded hash on each call to cleanup
+			// (which generally coincides with refreshes, as well as destroy).
+			listeners.push(aspect.after(grid, "cleanup", function(){
+				this._expanded = {};
+			}));
+		}
 		
 		grid._calcRowHeight = function(rowElement){
 			// we override this method so we can provide row height measurements that
@@ -135,7 +145,8 @@ return function(column){
 				target.className = "dgrid-expando-icon ui-icon ui-icon-triangle-1-" + (expanded ? "se" : "e");
 				var preloadNode = target.preloadNode,
 					rowElement = row.element,
-					container;
+					container, options;
+				
 				if(!preloadNode){
 					// if the children have not been created, create a container, a preload node and do the 
 					// query for the children
@@ -145,12 +156,18 @@ return function(column){
 						return grid.store.getChildren(row.data, options);
 					};
 					query.level = target.level;
+					if(column.allowDuplicates){
+						// If allowDuplicates is specified, include parentId in options
+						// in order to facilitate unique IDs for each occurrence of the
+						// same item under multiple different parents.
+						options = { parentId: row.id };
+					}
 					Deferred.when(
 						grid.renderQuery ?
 							grid._trackError(function(){
-								return grid.renderQuery(query, preloadNode);
+								return grid.renderQuery(query, preloadNode, options);
 							}) :
-							grid.renderArray(query({}), preloadNode),
+							grid.renderArray(query(options), preloadNode, {query: query}),
 						function(){
 							// Expand once results are retrieved, if the row is still expanded.
 							if(grid._expanded[row.id]){
@@ -237,7 +254,9 @@ return function(column){
 		// established above if the grid's columns are redefined later.
 		aspect.after(column, "destroy", function(){
 			arrayUtil.forEach(listeners, function(l){ l.remove(); });
+			// Delete methods we added/overrode on the instance.
 			delete grid.expand;
+			delete grid._calcRowHeight;
 		});
 	});
 	
@@ -248,11 +267,12 @@ return function(column){
 		var grid = column.grid,
 			level = Number(options && options.query && options.query.level) + 1,
 			mayHaveChildren = !grid.store.mayHaveChildren || grid.store.mayHaveChildren(object),
+			parentId = options.parentId,
 			expando, node;
 		
 		level = currentLevel = isNaN(level) ? 0 : level;
 		expando = column.renderExpando(level, mayHaveChildren,
-			grid._expanded[grid.store.getIdentity(object)]);
+			grid._expanded[(parentId ? parentId + "-" : "") + grid.store.getIdentity(object)]);
 		expando.level = level;
 		expando.mayHaveChildren = mayHaveChildren;
 		

@@ -1,10 +1,16 @@
-define(["dojo/_base/kernel", "dojo/_base/declare", "dojo/_base/lang", "dojo/_base/Deferred", "dojo/on"],
-function(kernel, declare, lang, Deferred, listen){
+define(["dojo/_base/kernel", "dojo/_base/declare", "dojo/_base/lang", "dojo/_base/Deferred", "dojo/on", "put-selector/put"],
+function(kernel, declare, lang, Deferred, listen, put){
 	// This module isolates the base logic required by store-aware list/grid
 	// components, e.g. OnDemandList/Grid and the Pagination extension.
 	
 	function emitError(err){
 		// called by _trackError in context of list/grid, if an error is encountered
+		if(typeof err !== "object"){
+			// Ensure we actually have an error object, so we can attach a reference.
+			err = new Error(err);
+		}
+		err.grid = this;
+		
 		if(listen.emit(this.domNode, "dgrid-error", {error: err, cancelable: true, bubbles: true})){
 			console.error(err);
 		}
@@ -31,7 +37,8 @@ function(kernel, declare, lang, Deferred, listen){
 		getBeforePut: true,
 		
 		// noDataMessage: String
-		//		Message to be displayed when no results exist for a query.
+		//		Message to be displayed when no results exist for a query, whether at
+		//		the time of the initial query or upon subsequent observed changes.
 		//		Defined by _StoreMixin, but to be implemented by subclasses.
 		noDataMessage: "",
 		
@@ -86,7 +93,7 @@ function(kernel, declare, lang, Deferred, listen){
 			// If we have new sort criteria, pass them through sort
 			// (which will update _sort and call refresh in itself).
 			// Otherwise, just refresh.
-			sort ? this.sort(sort) : this.refresh();
+			sort ? this.set("sort", sort) : this.refresh();
 		},
 		setStore: function(store, query, queryOptions){
 			kernel.deprecated("setStore(...)", 'use set("store", ...) instead', "dgrid 1.0");
@@ -253,6 +260,27 @@ function(kernel, declare, lang, Deferred, listen){
 			
 			// wrap in when call to handle reporting of potential async error
 			return Deferred.when(result, null, lang.hitch(this, emitError));
+		},
+		
+		newRow: function(){
+			// Override to remove no data message when a new row appears.
+			if(this.noDataNode){
+				put(this.noDataNode, "!");
+				delete this.noDataNode;
+			}
+			return this.inherited(arguments);
+		},
+		removeRow: function(rowElement, justCleanup){
+			var row = {element: rowElement};
+			// Check to see if we are now empty...
+			if(!justCleanup && this.noDataMessage &&
+					(this.up(row).element === rowElement) &&
+					(this.down(row).element === rowElement)){
+				// ...we are empty, so show the no data message.
+				this.noDataNode = put(this.contentNode, "div.dgrid-no-data");
+				this.noDataNode.innerHTML = this.noDataMessage;
+			}
+			return this.inherited(arguments);
 		}
 	});
 });

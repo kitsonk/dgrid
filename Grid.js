@@ -8,7 +8,7 @@ function(kernel, declare, listen, has, put, List){
 		}
 	}
 	
-	var Grid = declare([List], {
+	var Grid = declare(List, {
 		columns: null,
 		// cellNavigation: Boolean
 		//		This indicates that focus is at the cell level. This may be set to false to cause
@@ -105,14 +105,21 @@ function(kernel, declare, listen, has, put, List){
 				// for single-subrow cases in modern browsers, TR can be skipped
 				// http://jsperf.com/table-without-trs
 				tr = (sl == 1 && !has("ie")) ? tbody : put(tbody, "tr");
+				if(subRow.className){
+					put(tr, "." + subRow.className);
+				}
 				
 				for(i = 0, l = subRow.length; i < l; i++){
 					// iterate through the columns
 					column = subRow[i];
 					id = column.id;
 					extraClassName = column.className || (column.field && "field-" + column.field);
-					cell = put(tag + (".dgrid-cell.dgrid-cell-padding.dgrid-column-" + id +
-						(extraClassName ? "." + extraClassName : "")).replace(invalidClassChars,"-"));
+					cell = put(tag + (
+							".dgrid-cell.dgrid-cell-padding" +
+							(id ? ".dgrid-column-" + id : "") +
+							(extraClassName ? "." + extraClassName : "")
+						).replace(invalidClassChars,"-") +
+						"[role=" + (tag === "th" ? "columnheader" : "gridcell") + "]");
 					cell.columnId = id;
 					if(contentBoxSizing){
 						// The browser (IE7-) does not support box-sizing: border-box, so we emulate it with a padding div
@@ -164,7 +171,7 @@ function(kernel, declare, listen, has, put, List){
 			// row gets a wrapper div for a couple reasons:
 			//	1. So that one can set a fixed height on rows (heights can't be set on <table>'s AFAICT)
 			// 2. So that outline style can be set on a row when it is focused, and Safari's outline style is broken on <table>
-			return put("div[role=gridcell]>", row);
+			return put("div[role=row]>", row);
 		},
 		renderHeader: function(){
 			// summary:
@@ -175,12 +182,14 @@ function(kernel, declare, listen, has, put, List){
 				headerNode = this.headerNode,
 				i = headerNode.childNodes.length;
 			
+			headerNode.setAttribute("role", "row");
+			
 			// clear out existing header in case we're resetting
 			while(i--){
 				put(headerNode.childNodes[i], "!");
 			}
 			
-			var row = this.createRowCells("th[role=columnheader]", function(th, column){
+			var row = this.createRowCells("th", function(th, column){
 				var contentNode = column.headerNode = th;
 				if(contentBoxSizing){
 					// we're interested in the th, but we're passed the inner div
@@ -200,15 +209,14 @@ function(kernel, declare, listen, has, put, List){
 					th.sortable = true;
 					th.className += " dgrid-sortable";
 				}
-			});
+			}, this.subRows && this.subRows.headerRows);
 			this._rowIdToObject[row.id = this.id + "-header"] = this.columns;
 			headerNode.appendChild(row);
 			// if it columns are sortable, resort on clicks
 			listen(row, "click,keydown", function(event){
-				// respond to click or space keypress
-				if(event.type == "click" || event.keyCode == 32){
-					var
-						target = event.target,
+				// respond to click, space keypress, or enter keypress
+				if(event.type == "click" || event.keyCode == 32 /* space bar */ || (!has("opera") && event.keyCode == 13) /* enter */){
+					var target = event.target,
 						field, descending, parentNode, sort;
 					do{
 						if(target.sortable){
@@ -311,7 +319,6 @@ function(kernel, declare, listen, has, put, List){
 			// summary:
 			//		Dynamically creates a stylesheet rule to alter a column's style.
 			
-			// now add a rule to style the column
 			return this.addCssRule("#" + this.domNode.id + " .dgrid-column-" + colId, css);
 		},
 		

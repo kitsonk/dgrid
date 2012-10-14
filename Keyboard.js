@@ -33,9 +33,9 @@ function contains(parent, node){
 	}
 }
 
-return declare([List], {
+return declare(null, {
 	// summary:
-	// 		Add keyboard navigation capability to a grid/list
+	//		Add keyboard navigation capability to a grid/list
 	pageSkip: 10,
 	tabIndex: 0,
 	
@@ -55,13 +55,18 @@ return declare([List], {
 				next;
 			
 			function focusOnCell(element, event, dontFocus){
-				var cell = grid[grid.cellNavigation ? "cell" : "row"](element);
+				var cellOrRowType = grid.cellNavigation ? "cell" : "row",
+					cell = grid[cellOrRowType](element);
 				
 				element = cell && cell.element;
 				if(!element){ return; }
-				
+				event = lang.mixin({ grid: grid }, event);
+				if(event.type){
+					event.parentType = event.type;
+				}
 				if(!event.bubbles){
-					// IE doesn't always have a bubbles property already true, Opera will throw an error if you try to set it to true if it is already true
+					// IE doesn't always have a bubbles property already true.
+					// Opera throws if you try to set it to true if it is already true.
 					event.bubbles = true;
 				}
 				// clean up previously-focused element
@@ -72,11 +77,20 @@ return declare([List], {
 						// clean up after workaround below (for non-input cases)
 						cellFocusedElement.style.position = "";
 					}
-					event.cell = cellFocusedElement;
+					
+					// Expose object representing focused cell or row losing focus, via
+					// event.cell or event.row; which is set depends on cellNavigation.
+					event[cellOrRowType] = grid[cellOrRowType](cellFocusedElement);
 					on.emit(element, "dgrid-cellfocusout", event);
 				}
 				cellFocusedElement = element;
-				event.cell = element;
+				
+				// Expose object representing focused cell or row gaining focus, via
+				// event.cell or event.row; which is set depends on cellNavigation.
+				// Note that yes, the same event object is being reused; on.emit
+				// performs a shallow copy of properties into a new event object.
+				event[cellOrRowType] = cell;
+				
 				if(!dontFocus){
 					if(has("ie") < 8){
 						// setting the position to relative magically makes the outline
@@ -88,25 +102,26 @@ return declare([List], {
 					element.focus();
 				}
 				put(element, ".dgrid-focus");
-				on.emit(cellFocusedElement, "dgrid-cellfocusin", lang.mixin({ parentType: event.type }, event));
+				on.emit(cellFocusedElement, "dgrid-cellfocusin", event);
 			}
-
-			while((next = cellFocusedElement.firstChild) && next.tagName){
+			
+			while((next = cellFocusedElement.firstChild) && !isFocusableClass.test(next.className)){
 				cellFocusedElement = next;
 			}
+			if(next){ cellFocusedElement = next; }
 			
 			if(areaNode === grid.contentNode){
 				aspect.after(grid, "renderArray", function(ret){
 					// summary:
 					//		Ensures the first element of a grid is always keyboard selectable after data has been
 					//		retrieved if there is not already a valid focused element.
-
+					
 					return Deferred.when(ret, function(ret){
 						// do not update the focused element if we already have a valid one
 						if(isFocusableClass.test(cellFocusedElement.className) && contains(areaNode, cellFocusedElement)){
 							return ret;
 						}
-
+						
 						// ensure that the focused element is actually a grid cell, not a
 						// dgrid-preload or dgrid-content element, which should not be focusable,
 						// even when data is loaded asynchronously
@@ -116,9 +131,9 @@ return declare([List], {
 								break;
 							}
 						}
-
+						
 						cellFocusedElement.tabIndex = grid.tabIndex;
-
+						
 						return ret;
 					});
 				});

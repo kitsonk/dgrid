@@ -44,45 +44,55 @@
 			// allow retrieving skin from GET param
 			var skin = "claro",
 				match = /\bskin=([^&]*)/.exec(location.search),
-				skinDep, updateGrid;
+				skinDep, updateGrid,
+				getColumns, getColumns2;
 			if(match){ skin = match[1]; }
 			skinDep = "xstyle/css!dgrid/css/skins/" + skin + ".css";
 			
-			require([skinDep, "dgrid/Grid", "dgrid/extensions/Pagination", "dgrid/Selection",
+			require([skinDep, "dgrid/Grid", "dgrid/extensions/Pagination",
+					"dgrid/Selection", "dgrid/Keyboard", "dgrid/GridFromHtml",
 					"dojo/_base/lang", "dojo/_base/declare", "dojo/dom-construct", "dojo/dom-form", "dgrid/test/data/base", "dojo/domReady!"],
-				function(skinResource, Grid, Pagination, Selection,
+				function(skinResource, Grid, Pagination, Selection, Keyboard, GridFromHtml,
 						lang, declare, domConstruct, domForm, testStore){
 					
-					var CustomGrid = declare([Grid, Selection, Pagination]);
+					var CustomGrid = declare([Grid, Keyboard, Selection, Pagination]);
 					
-					columns = {
-						col1: 'Column 1',
-						col2: {label: 'Column2', sortable: false},
-						col3: 'Column 3',
-						col4: 'Column 4',
-						col5: 'Column 5'
+					getColumns = function(){
+						return {
+							col1: 'Column 1',
+							col2: {label: 'Column2', sortable: false},
+							col3: 'Column 3',
+							col4: 'Column 4',
+							col5: 'Column 5'
+						};
 					};
-					columns2 = {
-						col2: 'Col2',
-						col4: {label: 'Col4', sortable: false},
-						col1: 'Col1',
-						col5: 'Column 5'
+					getColumns2 = function(){
+						return {
+							col2: 'Col2',
+							col4: {label: 'Col4', sortable: false},
+							col1: 'Col1',
+							col5: 'Column 5'
+						};
 					};
 					
 					document.body.className = skin;
 					
 					window.grid2 = new CustomGrid({
 						store: testStore,
-						columns: columns2,
+						columns: getColumns2(),
 						pagingLinks: false,
 						pagingTextBox: true,
 						firstLastArrows: true,
 						pageSizeOptions: [10, 15, 25]
 					}, "grid2");
 					
+					window.gridfromhtml = new (declare([GridFromHtml, Keyboard, Selection, Pagination]))({
+						store: testStore
+					}, "gridfromhtml");
+					
 					function createGrid(args){
 						window.grid = new CustomGrid(
-							lang.mixin({ store: testAsyncStore, columns: columns }, args),
+							lang.mixin({ store: testAsyncStore, columns: getColumns() }, args),
 							"grid");
 					}
 					createGrid();
@@ -99,7 +109,7 @@
 						createGrid(args);
 						
 						return false;
-					}
+					};
 				});
 		</script>
 	</head>
@@ -122,12 +132,25 @@
 		</form>
 		<div id="grid"></div>
 		<div>Buttons to test changing column structure:
-			<button onclick="grid.set('columns', columns2);">New Structure</button>
-			<button onclick="grid.set('columns', columns);">Original</button>
+			<button onclick="grid.set('columns', getColumns2());">New Structure</button>
+			<button onclick="grid.set('columns', getColumns());">Original</button>
 			<button onclick="grid.set('store', emptyStore);">Set to empty store</button>
 			<button onclick="grid.set('store', testStore);">Set to original store</button>
 			<button onclick="testStore.add({col1:'new', col2:true});">Add row to original store</button>
+			<button onclick="grid.set('showFooter', !grid.get('showFooter'));">Toggle footer</button>
 		</div>
+		
+		<h2>A grid with declarative structure, with the Pagination extension</h2>
+		<table id="gridfromhtml">
+			<thead><tr>
+				<th data-dgrid-column="{ field: 'col1' }">Column 1</th>
+				<th data-dgrid-column="{ field: 'col2', sortable: false }">Column 2</th>
+				<th data-dgrid-column="{ field: 'col3' }">Column 3</th>
+				<th data-dgrid-column="{ field: 'col4' }">Column 4</th>
+				<th data-dgrid-column="{ field: 'col5' }">Column 5</th>
+			</tr></thead>
+		</table>
+		
 		<h2>An autoheight grid with the Pagination extension,
 			with a rows-per-page drop-down</h2>
 		<div id="grid2"></div>
