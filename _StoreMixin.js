@@ -3,15 +3,24 @@ function(kernel, declare, lang, Deferred, listen, put){
 	// This module isolates the base logic required by store-aware list/grid
 	// components, e.g. OnDemandList/Grid and the Pagination extension.
 	
+	// Noop function, needed for _trackError when callback due to a bug in 1.8
+	// (see http://bugs.dojotoolkit.org/ticket/16667)
+	function noop(value){ return value; }
+	
 	function emitError(err){
 		// called by _trackError in context of list/grid, if an error is encountered
 		if(typeof err !== "object"){
 			// Ensure we actually have an error object, so we can attach a reference.
 			err = new Error(err);
 		}
+		// TODO: remove this @ 1.0 (prefer grid property directly on event object)
 		err.grid = this;
 		
-		if(listen.emit(this.domNode, "dgrid-error", {error: err, cancelable: true, bubbles: true})){
+		if(listen.emit(this.domNode, "dgrid-error", {
+				grid: this,
+				error: err,
+				cancelable: true,
+				bubbles: true })){
 			console.error(err);
 		}
 	}
@@ -259,7 +268,7 @@ function(kernel, declare, lang, Deferred, listen, put){
 			}
 			
 			// wrap in when call to handle reporting of potential async error
-			return Deferred.when(result, null, lang.hitch(this, emitError));
+			return Deferred.when(result, noop, lang.hitch(this, emitError));
 		},
 		
 		newRow: function(){

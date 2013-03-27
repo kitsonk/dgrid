@@ -5,6 +5,8 @@ function(kernel, arrayUtil, on, aspect, has, put){
 		var listeners = [],
 			grid, headerCheckbox;
 		
+		if(!column){ column = {}; }
+		
 		if(column.type){
 			column.selectorType = column.type;
 			kernel.deprecated("columndef.type", "use columndef.selectorType instead", "dgrid 1.0");
@@ -60,8 +62,10 @@ function(kernel, arrayUtil, on, aspect, has, put){
 			// listen for keydown's as well to get an event in firefox that we can properly retrieve
 			// the shiftKey property from
 			if(event.type == "click" || event.keyCode == 32 || (!has("opera") && event.keyCode == 13) || event.keyCode === 0){
-				var row = grid.row(event), lastRow = grid._lastSelected && grid.row(grid._lastSelected);
+				var row = grid.row(event),
+					lastRow = grid._lastSelected && grid.row(grid._lastSelected);
 				grid._selectionTriggerEvent = event;
+				
 				if(type == "radio"){
 					if(!lastRow || lastRow.id != row.id){
 						grid.clearSelection();
@@ -81,6 +85,7 @@ function(kernel, arrayUtil, on, aspect, has, put){
 						grid.select(lastRow || row, row, lastRow ? undefined : null);
 						grid._lastSelected = row.element;
 					}else{
+						// No row resolved; must be the select-all checkbox.
 						put(this, (grid.allSelected ? "!" : ".") + "dgrid-select-all");
 						grid[grid.allSelected ? "clearSelection" : "selectAll"]();
 					}
@@ -103,11 +108,27 @@ function(kernel, arrayUtil, on, aspect, has, put){
 					handleSelect.apply(this, arguments);
 				}
 			};
+			
+			// Set up disabled and grid.allowSelect to match each other's behaviors
 			if(typeof column.disabled == "function"){
-				// we override this method to have selections follow the disabled method for selectability
-				var originalAllowSelect = grid.allowSelect;
+				var originalAllowSelect = grid.allowSelect,
+					originalDisabled = column.disabled;
+
+				// Wrap allowSelect to consult both the original allowSelect and disabled
 				grid.allowSelect = function(row){
-					return originalAllowSelect.call(this, row) && !column.disabled(row.data);
+					return originalAllowSelect.call(this, row) &&
+						!originalDisabled.call(column, row.data);
+				};
+
+				// Then wrap disabled to simply call the new allowSelect
+				column.disabled = function(item){
+					return !grid.allowSelect(grid.row(item));
+				};
+			}else{
+				// If no disabled function was specified, institute a default one
+				// which honors allowSelect
+				column.disabled = function(item){
+					return !grid.allowSelect(grid.row(item));
 				};
 			}
 			// register listeners to the select and deselect events to change the input checked value
@@ -115,21 +136,26 @@ function(kernel, arrayUtil, on, aspect, has, put){
 			listeners.push(grid.on("dgrid-deselect", changeInput(false)));
 		}
 		
-		var disabled = column.disabled;
 		var renderInput = typeof type == "function" ? type : function(value, cell, object){
-			var parent = cell.parentNode;
-			// must set the class name on the outer cell in IE for keystrokes to be intercepted
-			put(parent && parent.contents ? parent : cell, ".dgrid-selector");
-			var input = cell.input || (cell.input = put(cell, "input[type="+type + "]", {
-				tabIndex: isNaN(column.tabIndex) ? -1 : column.tabIndex,
-				disabled: disabled && (typeof disabled == "function" ? disabled(object) : disabled),
-				checked: value
-			}));
-			input.setAttribute("aria-checked", !!value);
+			var parent = cell.parentNode,
+				disabled;
 			
 			if(!grid._hasSelectorInputListener){
 				setupSelectionEvents();
 			}
+			
+			// column.disabled gets initialized or wrapped in setupSelectionEvents
+			disabled = column.disabled;
+
+			// must set the class name on the outer cell in IE for keystrokes to be intercepted
+			put(parent && parent.contents ? parent : cell, ".dgrid-selector");
+			var input = cell.input || (cell.input = put(cell, "input[type="+type + "]", {
+				tabIndex: isNaN(column.tabIndex) ? -1 : column.tabIndex,
+				disabled: disabled && (typeof disabled == "function" ?
+					disabled.call(column, object) : disabled),
+				checked: value
+			}));
+			input.setAttribute("aria-checked", !!value);
 			
 			return input;
 		};
@@ -146,18 +172,19 @@ function(kernel, arrayUtil, on, aspect, has, put){
 		column.renderCell = function(object, value, cell, options, header){
 			var row = object && grid.row(object);
 			value = row && grid.selection[row.id];
+			renderInput(value, cell, object);
+		};
+		column.renderHeaderCell = function(th){
+			var label = column.label || column.field || "";
 			
-			if(header && (type == "radio" || typeof object == "string" || !grid.allowSelectAll)){
-				cell.appendChild(document.createTextNode(object||""));
+			if(type == "radio" || !grid.allowSelectAll){
+				th.appendChild(document.createTextNode(label));
 				if(!grid._hasSelectorInputListener){
 					setupSelectionEvents();
 				}
 			}else{
-				renderInput(value, cell, object);
+				renderInput(false, th, {});
 			}
-		};
-		column.renderHeaderCell = function(th){
-			column.renderCell(column.label || {}, null, th, null, true);
 			headerCheckbox = th.lastChild;
 		};
 		

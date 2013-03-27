@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html>
 	<head>
+		<meta charset="utf-8">
 		<title>Test Cell Editors</title>
-		<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-		<meta name="viewport" content="width=570" />
-		<style type="text/css">
+		<meta name="viewport" content="width=570">
+		<style>
 			@import "../../dojo/resources/dojo.css";
 			@import "../../dijit/themes/claro/claro.css";
 			@import "../css/skins/claro.css";
@@ -22,13 +22,16 @@
 				border: 1px solid #333;
 				padding: 0 4px;
 			}
-			.inner {
-				background-color: #ccc;
+			.rendercell {
+				background-color: #ccf;
+			}
+			.formatter {
+				background-color: #cfc;
 			}
 		</style>
-		<script type="text/javascript" src="../../dojo/dojo.js"
+		<script src="../../dojo/dojo.js"
 			data-dojo-config="async: true, isDebug: true"></script>
-		<script type="text/javascript">
+		<script>
 			var grid, // stores global reference to grid instance
 				editFirst; // function defined within require callback
 			
@@ -124,7 +127,7 @@
 								} }
 							},
 							{
-								label: "dijit/editor",
+								label: "dijit/Editor",
 								generate: generateText,
 								column: {
 									renderCell: function(object, data){
@@ -204,11 +207,17 @@
 					
 					function customRenderCell(object, data) {
 						var container = domConstruct.create("div", { "class": "outer" });
-						domConstruct.place('<span class="inner">' +
+						domConstruct.place('<span class="rendercell">' +
 							("" + data).replace(/</g, "&lt;") + "</span>", container);
 						return container;
 					}
 					
+					function customFormatter(data) {
+						return '<div class="outer"><span class="formatter">' +
+							("" + data).replace(/</g, "&lt;") + "</span></div>";
+					}
+					
+					var cancelDataChange = false;
 					form.onsubmit = function(){
 						var
 							choice = getSelected(form.elements.editor),
@@ -232,6 +241,10 @@
 							if(form.elements.customRenderCell.checked){
 								columnArgs.renderCell = customRenderCell;
 							}
+							if(form.elements.customFormatter.checked){
+								columnArgs.formatter = customFormatter;
+							}
+							cancelDataChange = form.elements.cancelDataChange.checked;
 							
 							if(!grid){
 								grid = new CustomGrid({
@@ -262,6 +275,17 @@
 						console.log(evt.grid.id + " row " + evt.cell.row.id + " data changed" +
 						(event.parentType ? " (via " + event.parentType + "): " : ": "),
 						evt.oldValue, " -> ", evt.value);
+
+						if(cancelDataChange){
+							evt.preventDefault();
+						}
+					});
+					
+					on(document.body, "dgrid-editor-show", function(evt){
+						console.log("show editOn editor: ", evt);
+					});
+					on(document.body, "dgrid-editor-hide", function(evt){
+						console.log("hide editOn editor: ", evt);
 					});
 					
 					editFirst = function() {
@@ -287,7 +311,9 @@
 				</select>
 			</label></p>
 			<p><label><input type="checkbox" name="autoSave" value="true"> autoSave</label></p>
+			<p><label><input type="checkbox" name="cancelDataChange" value="false"> cancel dgrid-datachange</label></p>
 			<p><label><input type="checkbox" name="customRenderCell" value="true"> use custom renderCell</label></p>
+			<p><label><input type="checkbox" name="customFormatter" value="true"> use custom formatter (note: customRenderCell supersedes this setting)</label></p>
 			<div><button type="submit" id="editorFormSubmit">Recreate Grid</button></div>
 		</form>
 		<div id="grid"></div>
